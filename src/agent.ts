@@ -268,15 +268,15 @@ export class CoolBlock {
 const t = (text: string, delayMs?: number): Reply => ({ type: "text", text, ...(delayMs ? { delayMs } : {}) });
 
 const askOwner = (p: Place) =>
-  `Street trees can cut peak summer air temperatures by roughly 2–9°F (US EPA), ` +
+  `Street trees can cut peak summer air temperatures by roughly 2–9°F (U.S. Environmental Protection Agency), ` +
   `and each mature tree absorbs about 22 kg of CO₂ a year.\n\n` +
   `${p.city === "Boston" ? "Boston" : p.city === "Cambridge" ? "Cambridge" : "Your city"} plants street trees for free when residents ask. ` +
   `Is this place OWNED, RENTED, or PUBLIC? (reply OWN, RENT, or PUBLIC)`;
 
 const FACTS = [
-  "🔥 Did you know? On a sunny summer day, roofs and pavement can get 50–90°F hotter than the air around them (US EPA).",
+  "🔥 Did you know? On a sunny summer day, roofs and pavement can get 50–90°F hotter than the air around them (U.S. Environmental Protection Agency).",
   "🌡️ Did you know? Heat kills more Americans than any other kind of weather, more than hurricanes, floods or tornadoes (National Weather Service).",
-  "🌳 Did you know? A patch of tree shade can be 20–45°F cooler than sun-baked pavement just a few steps away (US EPA).",
+  "🌳 Did you know? A patch of tree shade can be 20–45°F cooler than sun-baked pavement just a few steps away (U.S. Environmental Protection Agency).",
   "🏙️ Did you know? During heat waves, some Boston neighborhoods run up to 7.5°F hotter than the rest of the city, often the ones that were once redlined (City of Boston Heat Plan).",
 ];
 
