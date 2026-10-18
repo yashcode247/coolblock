@@ -1,0 +1,26 @@
+{
+  "name": "coolblock",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "web": "tsx src/main.ts web",
+    "photon": "tsx src/main.ts photon",
+    "eval": "tsx evals/run.ts",
+    "typecheck": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@photon-ai/api": "^0.5.0",
+    "heic-convert": "^2.1.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  },
+  "type": "module"
+}
