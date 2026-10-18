@@ -91,7 +91,10 @@ async function handle(photon: Photon, project: string, bot: CoolBlock, m: Receiv
         await send(i, { type: "attachment", attachmentId: await upload(photon, project, r.jpeg, r.name) });
       } catch (e) {
         console.error("[photon] image", describe(e));
-        await send(i, { type: "text", format: "plain", text: "Couldn't send the tree photo just now. Try another photo in a moment." });
+        const note = r.name.includes("heat-map")
+          ? "Couldn't send the heat map just now, but the numbers above are from the satellite."
+          : "Couldn't send the tree photo just now. Try another photo in a moment.";
+        await send(i, { type: "text", format: "plain", text: note });
       }
     }
   } catch (e) {

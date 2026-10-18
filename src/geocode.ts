@@ -25,6 +25,7 @@ function cityOf(s: string | undefined): Place["city"] {
 }
 
 const cache = new Map<string, Place | null>();
+const userAgent = () => process.env.GEOCODER_USER_AGENT ?? "CoolBlock/0.1 (HackHarvard 2026 project)";
 
 export async function geocode(query: string): Promise<Place | null> {
   const q = query.trim().toLowerCase().replace(/[?.!]+$/, "");
@@ -41,7 +42,7 @@ export async function geocode(query: string): Promise<Place | null> {
   url.searchParams.set("bounded", "1");
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": process.env.GEOCODER_USER_AGENT ?? "CoolBlock/0.1 (HackHarvard 2026 project)" },
+      headers: { "User-Agent": userAgent() },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
@@ -57,6 +58,24 @@ export async function geocode(query: string): Promise<Place | null> {
     };
     cache.set(q, place);
     return place;
+  } catch {
+    return null;
+  }
+}
+
+/** Street name at a point, via Nominatim reverse at street level. Null on any failure. */
+export async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("zoom", "17");
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": userAgent() }, signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const hit = (await res.json()) as any;
+    const a = hit?.address ?? {};
+    return a.road ?? a.pedestrian ?? a.footway ?? a.square ?? null;
   } catch {
     return null;
   }

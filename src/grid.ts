@@ -27,9 +27,20 @@ export type BlockReading = {
   sceneCount: number;
 };
 
+export type NearbySpot = {
+  lat: number; // centre of the block's middle cell, so lookup(lat, lon) returns the same lstF
+  lon: number;
+  lstF: number;
+  distanceM: number;
+  direction: string; // e.g. "south-east"
+};
+
 const LEAFY_NDVI = 0.5;
 const BLOCK_RADIUS_CELLS = 1; // 3x3 cells ≈ 150 m
 const NEARBY_KM = 1;
+const OWN_BLOCK_M = 200;
+const MIN_BLOCK_CELLS = 6;
+const COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
 
 export class Grid {
   private g: GridFile;
@@ -47,6 +58,18 @@ export class Grid {
 
   get synthetic() {
     return this.g.synthetic;
+  }
+
+  get meta() {
+    const { stats, scene_count, dates } = this.g;
+    return { stats, sceneCount: scene_count, firstDate: dates[0], lastDate: dates[dates.length - 1] };
+  }
+
+  /** Surface temp of the single ~50 m land cell at this point, or null for water / no data. */
+  cellTempF(lat: number, lon: number): number | null {
+    if (!this.contains(lat, lon)) return null;
+    const { row, col } = this.cell(lat, lon);
+    return this.at(row, col)?.t ?? null;
   }
 
   contains(lat: number, lon: number) {
@@ -70,23 +93,34 @@ export class Grid {
     return { t: t / 10, n: n / 100 };
   }
 
-  lookup(lat: number, lon: number): BlockReading | null {
-    if (!this.contains(lat, lon)) return null;
-    const { row, col } = this.cell(lat, lon);
-
+  private block(row: number, col: number) {
     let ts = 0, ns = 0, k = 0;
     for (let dr = -BLOCK_RADIUS_CELLS; dr <= BLOCK_RADIUS_CELLS; dr++)
       for (let dc = -BLOCK_RADIUS_CELLS; dc <= BLOCK_RADIUS_CELLS; dc++) {
         const v = this.at(row + dr, col + dc);
         if (v) { ts += v.t; ns += v.n; k++; }
       }
-    if (k === 0) return null;
-    const lstF = ts / k;
-    const ndvi = ns / k;
+    return k === 0 ? null : { t: ts / k, n: ns / k, k };
+  }
+
+  private radiusCells(lat: number) {
+    return {
+      rRows: Math.ceil(NEARBY_KM / 111 / this.g.res),
+      rCols: Math.ceil(NEARBY_KM / (111 * Math.cos((lat * Math.PI) / 180)) / this.g.res),
+    };
+  }
+
+  lookup(lat: number, lon: number): BlockReading | null {
+    if (!this.contains(lat, lon)) return null;
+    const { row, col } = this.cell(lat, lon);
+
+    const b = this.block(row, col);
+    if (!b) return null;
+    const lstF = b.t;
+    const ndvi = b.n;
 
     // leafy cells within ~1 km
-    const rRows = Math.ceil(NEARBY_KM / 111 / this.g.res);
-    const rCols = Math.ceil(NEARBY_KM / (111 * Math.cos((lat * Math.PI) / 180)) / this.g.res);
+    const { rRows, rCols } = this.radiusCells(lat);
     let gs = 0, gk = 0;
     for (let dr = -rRows; dr <= rRows; dr++)
       for (let dc = -rCols; dc <= rCols; dc++) {
@@ -107,6 +141,31 @@ export class Grid {
       synthetic: this.g.synthetic,
       sceneCount: this.g.scene_count,
     };
+  }
+
+  /** Hottest and coolest blocks within 1 km, excluding the caller's own block. */
+  nearbyExtremes(lat: number, lon: number): { hottest: NearbySpot | null; coolest: NearbySpot | null } {
+    if (!this.contains(lat, lon)) return { hottest: null, coolest: null };
+    const { row, col } = this.cell(lat, lon);
+    const { rRows, rCols } = this.radiusCells(lat);
+    const mPerDegLat = 110_540, mPerDegLon = 111_320 * Math.cos((lat * Math.PI) / 180);
+    let hottest: NearbySpot | null = null, coolest: NearbySpot | null = null;
+    for (let dr = -rRows; dr <= rRows; dr++)
+      for (let dc = -rCols; dc <= rCols; dc++) {
+        const r = row + dr, c = col + dc;
+        const cLat = this.g.bbox[3] - (r + 0.5) * this.g.res;
+        const cLon = this.g.bbox[0] + (c + 0.5) * this.g.res;
+        const dx = (cLon - lon) * mPerDegLon, dy = (cLat - lat) * mPerDegLat;
+        const distanceM = Math.hypot(dx, dy);
+        if (distanceM < OWN_BLOCK_M || distanceM > NEARBY_KM * 1000) continue;
+        const b = this.block(r, c);
+        if (!b || b.k < MIN_BLOCK_CELLS) continue;
+        const bearing = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+        const spot = { lat: cLat, lon: cLon, lstF: b.t, distanceM, direction: COMPASS[Math.round(bearing / 45) % 8] };
+        if (!hottest || b.t > hottest.lstF) hottest = spot;
+        if (!coolest || b.t < coolest.lstF) coolest = spot;
+      }
+    return { hottest, coolest };
   }
 
   private percentile(t: number) {

@@ -8,7 +8,8 @@ Boston's formerly redlined neighborhoods run up to 7.5°F hotter during heat wav
 
 1. You text an address (or "Nubian Square") to the CoolBlock iMessage number.
 2. It geocodes it and looks up **Landsat 8/9 surface temperature and vegetation (NDVI)** for your block: how hot it gets on clear summer days, how you rank across Boston, Cambridge and Somerville, and how much cooler the leafy blocks within 1 km are.
-3. You text a photo of your street. **Gemini** sends it back with street trees.
+   It also sends a **heat-map card** drawn from the same satellite grid: about 2 km around your block over a street map, with your block, the hottest and coolest blocks within 1 km, and a color scale.
+3. You text a photo of your street. **Gemini** first reads the photo and compares it with the satellite reading. A bare street comes back with street trees drawn in; a street that's already shaded gets pointed to the hottest block within 1 km instead; a shaded street on a hot block is told the heat is likely coming from rooftops and pavement nearby.
 4. It asks whether you own or rent, then gives the exact free request steps (Boston 311 / Cambridge Public Works) plus a pre-written request, or a ready-to-send text for your landlord.
 
 ## Where each sponsor technology is used
