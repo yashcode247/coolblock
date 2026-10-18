@@ -76,7 +76,21 @@ form{display:flex;gap:8px;padding:12px;background:#ffffff1f;border-top:1px solid
 input[type=text]{flex:1;background:#fff;border:1px solid #2f9e5b55;color:var(--text);border-radius:22px;padding:11px 16px;font-size:16px;outline:none}
 input[type=text]:focus{border-color:var(--me);box-shadow:0 0 0 3px #2f9e5b33}
 button,label.cam{background:var(--me);color:#fff;border:0;border-radius:22px;padding:0 18px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center}
-button:hover{background:#268a4e}label.cam{background:#e3f3e9;color:#1f6b43}input[type=file]{display:none}
+button:hover{background:#268a4e}
+#intro{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;color:#fff;
+background:#070b2499;transition:opacity .7s,transform .7s}
+#intro.gone{opacity:0;transform:scale(1.08);pointer-events:none}
+#intro h2{margin:0;font-size:clamp(40px,8vw,72px);letter-spacing:1px;text-shadow:0 0 30px #9fb7ff88}#intro h2 span{color:#ffd27a}
+#intro p{margin:0;color:#cfe0ff;font-size:18px;max-width:440px;padding:0 20px}
+#go{position:relative;padding:18px 44px;font-size:20px;border-radius:40px;background:linear-gradient(135deg,#2f9e5b,#5fd38d);
+box-shadow:0 0 0 0 #5fd38daa;animation:pulse 2s infinite}
+#go:hover{transform:scale(1.06)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #5fd38daa}70%{box-shadow:0 0 0 22px #5fd38d00}100%{box-shadow:0 0 0 0 #5fd38d00}}
+.orbit{width:90px;height:90px;border-radius:50%;border:2px dashed #ffffff55;position:relative;animation:spin 8s linear infinite}
+.orbit::after{content:"🛰️";position:absolute;top:-14px;left:32px;font-size:24px}
+.orbit::before{content:"🌳";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:38px;animation:spin 8s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.app.hidden{opacity:0;transform:translateY(30px)}.app{transition:opacity .7s,transform .7s}label.cam{background:#e3f3e9;color:#1f6b43}input[type=file]{display:none}
 </style></head><body>
 <div class="stars"></div><div class="sun"></div>
 <svg class="forest" viewBox="0 0 1440 520" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
@@ -106,7 +120,10 @@ button:hover{background:#268a4e}label.cam{background:#e3f3e9;color:#1f6b43}input
 </svg>
 <span class="leaf" style="left:8%;animation-duration:14s">🍃</span><span class="leaf" style="left:30%;animation-duration:19s;animation-delay:-6s">🍂</span>
 <span class="leaf" style="left:62%;animation-duration:16s;animation-delay:-11s">🍃</span><span class="leaf" style="left:85%;animation-duration:21s;animation-delay:-3s">🌿</span>
-<div class="app">
+<div id="intro"><div class="orbit"></div><h2>Cool<span>Block</span></h2>
+<p>Your block's heat, seen from space. Your street, reimagined with trees.</p>
+<button id="go">🚀 Start exploring</button></div>
+<div class="app hidden">
 <header><h1>Cool<span>Block</span> 🌳🛰️</h1><p>Your block's heat, seen from space. Your street, reimagined with trees.</p></header>
 <div id="log"></div>
 <form id="f"><label class="cam" title="Send a street photo">📷<input id="file" type="file" accept="image/*"></label>
@@ -124,5 +141,6 @@ async function send(payload){const ty=document.createElement('div');ty.className
 document.getElementById('f').onsubmit=e=>{e.preventDefault();const v=t.value.trim();if(!v)return;add('me',v);t.value='';send({text:v})};
 file.onchange=()=>{const f=file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const url=rd.result;
  const i=new Image();i.src=url;add('me',i);send({imageB64:url.split(',')[1],mimeType:f.type})};rd.readAsDataURL(f);file.value=''};
-send({text:'hi'});
+document.getElementById('go').onclick=()=>{document.getElementById('intro').classList.add('gone');
+ document.querySelector('.app').classList.remove('hidden');send({text:'hi'});setTimeout(()=>t.focus(),400)};
 </script></body></html>`;
