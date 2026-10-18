@@ -136,7 +136,8 @@ function add(cls,content){const d=document.createElement('div');d.className='b '
  if(typeof content==='string')d.textContent=content;else d.appendChild(content);log.appendChild(d);log.scrollTop=log.scrollHeight}
 async function send(payload){const ty=document.createElement('div');ty.className='typing';ty.textContent='CoolBlock is typing…';log.appendChild(ty);log.scrollTop=log.scrollHeight;
  try{const r=await fetch('/api/msg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user,...payload})});
- const replies=await r.json();ty.remove();for(const x of replies){if(x.type==='text')add('bot',x.text);else{const i=new Image();i.src=x.src;add('bot',i)}}}
+ const replies=await r.json();for(const x of replies){if(x.delayMs)await new Promise(ok=>setTimeout(ok,x.delayMs));
+  if(x.type==='text')add('bot',x.text);else{const i=new Image();i.src=x.src;add('bot',i)}}ty.remove()}
  catch(e){ty.remove();add('bot','Connection problem, try again.')}}
 document.getElementById('f').onsubmit=e=>{e.preventDefault();const v=t.value.trim();if(!v)return;add('me',v);t.value='';send({text:v})};
 file.onchange=()=>{const f=file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const url=rd.result;

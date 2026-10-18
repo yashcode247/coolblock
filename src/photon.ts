@@ -83,6 +83,7 @@ async function handle(photon: Photon, project: string, bot: CoolBlock, m: Receiv
         body: { spaceId, senderId, content },
       });
     for (const [i, r] of replies.entries()) {
+      if (r.delayMs) await new Promise((resolve) => setTimeout(resolve, r.delayMs));
       if (r.type === "text") {
         await send(i, { type: "text", format: "plain", text: r.text });
         continue;

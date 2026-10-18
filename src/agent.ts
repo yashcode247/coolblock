@@ -6,7 +6,9 @@ import { analyzeStreet, type StreetAnalysis } from "./vision.js";
 import { renderHeatCard, type HeatCard } from "./heatcard.js";
 
 export type Inbound = { text?: string; image?: { data: Buffer; mimeType?: string } };
-export type Reply = { type: "text"; text: string } | { type: "image"; jpeg: Buffer; name: string };
+export type Reply =
+  | { type: "text"; text: string; delayMs?: number }
+  | { type: "image"; jpeg: Buffer; name: string; delayMs?: number };
 export type PhotoAction = "notStreet" | "alreadyShaded" | "hiddenHeat" | "addTrees";
 
 export type Deps = {
@@ -55,7 +57,7 @@ export class CoolBlock {
     if (!text) return [];
     if (/^\/?reset$/i.test(text)) { this.sessions.delete(user); return [t("Reset. Text me an address to start.")]; }
     if (/^(hi|hey|hello|start|help|\?)\b/i.test(text) && text.split(/\s+/).length <= 3)
-      return [t(FACTS[Math.floor(Math.random() * FACTS.length)]), t(INTRO)];
+      return [t(FACTS[Math.floor(Math.random() * FACTS.length)]), t(INTRO, 4_000)];
     if (s.stage === "askOwner" || s.stage === "done") {
       if (/^(own|i own|owner|yes|y|homeowner)\b/i.test(text)) return this.onOwner(s, true);
       if (/^(rent|i rent|renter|tenant|no|n)\b/i.test(text)) return this.onOwner(s, false);
@@ -234,7 +236,7 @@ export class CoolBlock {
   }
 }
 
-const t = (text: string): Reply => ({ type: "text", text });
+const t = (text: string, delayMs?: number): Reply => ({ type: "text", text, ...(delayMs ? { delayMs } : {}) });
 
 const askOwner = (p: Place) =>
   `Street trees can cut peak summer air temperatures by roughly 2–9°F (US EPA), ` +
