@@ -45,6 +45,16 @@ await bot.handle("eval:renter", { text: "nubian square" });
 const renter = await bot.handle("eval:renter", { text: "rent" });
 check("Boston renter is routed to landlord", renter.some((r) => r.type === "text" && /property owner/.test(r.text)));
 
+// Public spaces skip owner/landlord instructions and go straight to the city's Urban Forestry contact.
+await bot.handle("eval:public", { text: "harvard square" });
+(bot as any).sessions.get("eval:public").stage = "askOwner";
+const publicReply = await bot.handle("eval:public", { text: "none" });
+const publicText = publicReply.map((r) => r.type === "text" ? r.text : "").join("\n");
+check("NONE is treated as public space, not as a new address",
+  (bot as any).sessions.get("eval:public").place.city === "Cambridge" && (bot as any).sessions.get("eval:public").stage === "done");
+check("Cambridge public space gets the verified Urban Forestry phone number", publicText.includes("617-349-4800"));
+check("Public-space script never claims the user owns the location", !/I am the property owner/i.test(publicText));
+
 // 5. Photo decisions: what the photo shows vs what the satellite measured (no network).
 const photo = (o: Partial<StreetAnalysis>): StreetAnalysis => ({
   isOutdoorStreet: true, treeCount: "none", canopyShare: 0.05, pavedShare: 0.6, roomForStreetTrees: true, oneLine: "A paved street", ...o,

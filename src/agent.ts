@@ -60,6 +60,7 @@ export class CoolBlock {
       return [t(FACTS[Math.floor(Math.random() * FACTS.length)]), t(INTRO, 4_000)];
     if (s.stage === "askOwner" || s.stage === "done") {
       if (/^(own|i own|owner|yes|y|homeowner)\b/i.test(text)) return this.onOwner(s, true);
+      if (/^(public|public space|none|neither|park|plaza)$/i.test(text)) return this.onPublic(s);
       if (/^(rent|i rent|renter|tenant|no|n)\b/i.test(text)) return this.onOwner(s, false);
     }
     return this.onAddress(s, text);
@@ -234,6 +235,34 @@ export class CoolBlock {
     }
     return [t(`Contact your city's public works or forestry department to request a street tree. Include this: ${evidence}`)];
   }
+
+  private onPublic(s: Session): Reply[] {
+    s.stage = "done";
+    const p = s.place, r = s.reading;
+    if (!p || !r) return [t("Text me the public space's address first.")];
+    const evidence =
+      `Landsat measured summer ground temperature around ${p.label} at about ${f(r.lstF)}, ` +
+      `hotter than ${r.percentile}% of Boston, Cambridge & Somerville` +
+      (r.greenDeltaF !== null && r.greenDeltaF >= 2 ? `, and about ${f(r.greenDeltaF)} hotter than leafy blocks nearby.` : ".");
+    const script = `“I'd like to suggest a new public shade tree near ${p.label}. ${evidence} ` +
+      `Could Urban Forestry evaluate this public location for planting?”`;
+
+    if (p.city === "Boston")
+      return [t(
+        `🏛️ Since this is public space, you don't need to claim that you own it—the city decides whether the site is suitable.\n\n` +
+        `Call Boston Urban Forestry at 617-635-8733 (or dial 311) and ask for a “New Tree Request.” You can say:\n\n${script}`,
+      )];
+    if (p.city === "Cambridge")
+      return [t(
+        `🏛️ Since this is public space, you don't need a landlord or property-owner request—the city decides whether the site is suitable.\n\n` +
+        `Call Cambridge Public Works / Urban Forestry at 617-349-4800 and ask for a “Tree Planting Request.” You can say:\n\n${script}\n\n` +
+        `You can also submit it online at cambridgema.gov/seeclickfix under “Tree Planting Request.”`,
+      )];
+    return [t(
+      `🏛️ Since this is public space, you don't need to claim that you own it—the city decides whether the site is suitable.\n\n` +
+      `Call Somerville Urban Forestry at 617-625-6600 ext. 2516, or dial 311, and ask for a new public tree. You can say:\n\n${script}`,
+    )];
+  }
 }
 
 const t = (text: string, delayMs?: number): Reply => ({ type: "text", text, ...(delayMs ? { delayMs } : {}) });
@@ -242,7 +271,7 @@ const askOwner = (p: Place) =>
   `Street trees can cut peak summer air temperatures by roughly 2–9°F (US EPA), ` +
   `and each mature tree absorbs about 22 kg of CO₂ a year.\n\n` +
   `${p.city === "Boston" ? "Boston" : p.city === "Cambridge" ? "Cambridge" : "Your city"} plants street trees for free when residents ask. ` +
-  `Do you OWN or RENT the home there? (reply OWN or RENT)`;
+  `Is this place OWNED, RENTED, or PUBLIC? (reply OWN, RENT, or PUBLIC)`;
 
 const FACTS = [
   "🔥 Did you know? On a sunny summer day, roofs and pavement can get 50–90°F hotter than the air around them (US EPA).",
