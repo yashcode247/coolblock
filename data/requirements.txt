@@ -1,0 +1,8 @@
+pystac-client
+planetary-computer
+odc-stac
+rasterio
+dask
+xarray
+numpy
+matplotlib
