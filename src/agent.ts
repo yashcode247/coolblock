@@ -190,23 +190,44 @@ export class CoolBlock {
           "Here's how to get a free street tree from Boston:\n" +
           "1. Open the BOS:311 app, call 311, or call Urban Forestry at 617-635-8733 → \"New Tree Request\".\n" +
           "2. Check the spot: at least 10 ft from light poles, driveways and hydrants, not under power lines, room for a ~24 sq ft tree pit.\n" +
-          "3. An arborist inspects; the city plants it and waters it for you.\n\nPaste this into your request 👇",
+          "3. An arborist inspects; the city plants it and waters it for you.\n\n" +
+          "Copy the next message into the description field of the Boston 311 New Tree Request form 👇",
         ),
         t(`New street tree request for the sidewalk in front of ${p.label}. ${evidence} I am the property owner and would like a tree (or several) planted here.`),
       ];
       return [
-        t("Heads up: Boston only acts on new-tree requests made by the property owner next to the spot, so renter requests get closed. Send this to your landlord 👇"),
-        t(`Hi! I'm your tenant at ${p.label}. The City of Boston plants street trees out front for free; the owner just has to request one (311 app, or 617-635-8733). ${evidence} A tree would cool the building in summer and it costs you nothing. Would you be willing to submit the request?`),
+        t(
+          "Boston requires the property owner next to the sidewalk to submit the tree request. " +
+          "Forward the next message to your landlord—it explains the free program and gives them wording they can copy into the form 👇",
+        ),
+        t(
+          `Hi! I'm your tenant at ${p.label}. The City of Boston can plant a street tree outside the property for free. ` +
+          `Would you submit a New Tree Request through the BOS:311 app, by calling 311, or at 617-635-8733?\n\n` +
+          `${evidence} A tree could provide shade and help cool the building in summer.\n\n` +
+          `You can copy this into the request form: “New street tree request for the sidewalk in front of ${p.label}. ` +
+          `${evidence} I am the property owner and support planting a tree here.”`,
+        ),
       ];
     }
     if (p.city === "Cambridge") {
       if (owns) return [
-        t("Cambridge Public Works takes tree planting requests at cambridgema.gov/tree. For your own yard, Green Cambridge's Canopy Crew plants native trees for free.\n\nPaste this into your request 👇"),
+        t(
+          "Cambridge Public Works takes street-tree requests at cambridgema.gov/tree. For a private yard, Green Cambridge's Canopy Crew plants native trees for free.\n\n" +
+          "Copy the next message into the description field of the Cambridge tree request form 👇",
+        ),
         t(`Tree planting request for the sidewalk at ${p.label}. ${evidence} I'm the property owner and support planting here.`),
       ];
       return [
-        t("In Cambridge the property owner next to the spot has the final say, so ask your landlord. Send this 👇"),
-        t(`Hi! I'm your tenant at ${p.label}. Cambridge Public Works plants street trees on request (cambridgema.gov/tree). ${evidence} Would you be willing to request one?`),
+        t(
+          "Cambridge asks the adjacent property owner to approve the planting location. " +
+          "Forward the next message to your landlord—it explains the program and gives them wording they can copy into the form 👇",
+        ),
+        t(
+          `Hi! I'm your tenant at ${p.label}. Cambridge Public Works accepts free street-tree requests at cambridgema.gov/tree. ` +
+          `Would you submit a request for the sidewalk outside the property?\n\n${evidence} A tree could provide shade and help cool the building in summer.\n\n` +
+          `You can copy this into the form: “Tree planting request for the sidewalk at ${p.label}. ${evidence} ` +
+          `I am the property owner and support planting a tree here.”`,
+        ),
       ];
     }
     return [t(`Contact your city's public works or forestry department to request a street tree. Include this: ${evidence}`)];
