@@ -188,7 +188,7 @@ export class CoolBlock {
       if (owns) return [
         t(
           "Here's how to get a free street tree from Boston:\n" +
-          "1. Open the BOS:311 app, call 311, or call Urban Forestry at 617-635-TREE → \"New Tree Request\".\n" +
+          "1. Open the BOS:311 app, call 311, or call Urban Forestry at 617-635-8733 → \"New Tree Request\".\n" +
           "2. Check the spot: at least 10 ft from light poles, driveways and hydrants, not under power lines, room for a ~24 sq ft tree pit.\n" +
           "3. An arborist inspects; the city plants it and waters it for you.\n\nPaste this into your request 👇",
         ),
@@ -196,7 +196,7 @@ export class CoolBlock {
       ];
       return [
         t("Heads up: Boston only acts on new-tree requests made by the property owner next to the spot, so renter requests get closed. Send this to your landlord 👇"),
-        t(`Hi! I'm your tenant at ${p.label}. The City of Boston plants street trees out front for free; the owner just has to request one (311 app, or 617-635-TREE). ${evidence} A tree would cool the building in summer and it costs you nothing. Would you be willing to submit the request?`),
+        t(`Hi! I'm your tenant at ${p.label}. The City of Boston plants street trees out front for free; the owner just has to request one (311 app, or 617-635-8733). ${evidence} A tree would cool the building in summer and it costs you nothing. Would you be willing to submit the request?`),
       ];
     }
     if (p.city === "Cambridge") {
