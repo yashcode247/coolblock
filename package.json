@@ -1,12 +1,12 @@
 {
   "name": "coolblock",
   "version": "1.0.0",
-  "description": "",
+  "description": "Summer heat anywhere on Earth from live NASA satellite and weather data, and a chat agent that gets street trees planted.",
   "scripts": {
     "start": "tsx src/main.ts",
     "web": "tsx src/main.ts web",
     "photon": "tsx src/main.ts photon",
-    "eval": "tsx evals/run.ts",
+    "eval": "tsx evals/run.ts && tsx evals/explorer.ts",
     "typecheck": "tsc"
   },
   "keywords": [],
@@ -15,6 +15,7 @@
   "dependencies": {
     "@photon-ai/api": "^0.5.0",
     "heic-convert": "^2.1.0",
+    "leaflet": "^1.9.4",
     "sharp": "^0.35.5"
   },
   "devDependencies": {

@@ -49,6 +49,17 @@ export class CoolBlock {
     return s;
   }
 
+  /** Where the conversation stands, so the web chat can offer the right quick replies and map links. */
+  context(user: string) {
+    const s = this.sessions.get(user);
+    const p = s?.place;
+    return {
+      stage: s?.stage ?? "new",
+      place: p ? { lat: p.lat, lon: p.lon, label: p.label, city: p.city } : null,
+      reading: s?.reading ? { lstF: Math.round(s.reading.lstF), percentile: s.reading.percentile } : null,
+    };
+  }
+
   async handle(user: string, msg: Inbound): Promise<Reply[]> {
     const s = this.session(user);
     if (msg.image) return this.onPhoto(s, msg.image);

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CoolBlock Heat Explorer</title>
+<meta name="description" content="Summer heat anywhere on Earth from live NASA satellite and weather data: where it's hottest, how this summer compares, and where trees would cool it most.">
+<meta name="theme-color" content="#070b1a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/explorer.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="haze"><feTurbulence id="hazeNoise" type="fractalNoise" baseFrequency="0.012 0.06" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="7"/></filter>
+</svg>
+
+<div id="map" aria-label="Map. Click anywhere to analyze summer heat there."></div>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="CoolBlock Heat Explorer home"><span class="logo">🌳</span><span class="brand-name">Cool<b>Block</b></span><span class="brand-sub">Heat Explorer</span></a>
+  <form class="search" id="search" role="search" autocomplete="off">
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input id="q" type="search" placeholder="Search any city, neighborhood or address" aria-label="Search for a place" enterkeyhint="search">
+    <button type="button" class="icon-btn ripple" id="locate" title="Use my location" aria-label="Use my location">◎</button>
+    <ul class="results" id="results" role="listbox" hidden></ul>
+  </form>
+  <div class="top-actions">
+    <div class="seg" role="group" aria-label="Temperature unit">
+      <button type="button" data-unit="F" class="ripple">°F</button><button type="button" data-unit="C" class="ripple">°C</button>
+    </div>
+    <button type="button" class="icon-btn ripple" id="sound" aria-pressed="true" title="Sound effects">🔊</button>
+    <a class="chat-link ripple" href="/chat" title="Chat with CoolBlock about your block">💬 <span>Chat</span></a>
+  </div>
+</header>
+
+<aside class="panel" id="panel" aria-label="Heat analysis" hidden>
+  <button class="sheet-handle" id="handle" aria-label="Expand or collapse the analysis panel"><span></span></button>
+  <div class="place" id="place">
+    <div class="place-row">
+      <div>
+        <h2 id="place-name">—</h2>
+        <p class="place-detail" id="place-detail"></p>
+      </div>
+      <div class="live-chip" id="live-chip" hidden><span class="live-dot"></span><b id="live-t">—</b><span>now</span></div>
+    </div>
+    <div class="season-row">
+      <button class="icon-btn small ripple" id="prev-year" aria-label="Previous summer">‹</button>
+      <label class="sr-only" for="year">Summer</label>
+      <select id="year"></select>
+      <button class="icon-btn small ripple" id="next-year" aria-label="Next summer">›</button>
+      <label class="sr-only" for="season">Season</label>
+      <select id="season" title="Which three months count as summer"></select>
+      <button class="icon-btn small ripple" id="share" title="Copy a link to this view" aria-label="Copy a link">⤴</button>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="summer" aria-selected="true" class="ripple">☀️ Summer</button>
+    <button role="tab" data-tab="satellite" class="ripple">🛰️ Satellite</button>
+    <button role="tab" data-tab="cooling" class="ripple">🌳 Cooling</button>
+    <button role="tab" data-tab="climate" class="ripple">📈 Trend</button>
+    <button role="tab" data-tab="live" class="ripple">📡 Live</button>
+    <span class="tab-ink" id="tab-ink"></span>
+  </nav>
+  <div class="tab-body" id="tab-body">
+    <section role="tabpanel" id="tab-summer"></section>
+    <section role="tabpanel" id="tab-satellite" hidden></section>
+    <section role="tabpanel" id="tab-cooling" hidden></section>
+    <section role="tabpanel" id="tab-climate" hidden></section>
+    <section role="tabpanel" id="tab-live" hidden></section>
+  </div>
+</aside>
+
+<div class="hud" id="hud" hidden>
+  <div class="hud-card timeline" id="timeline">
+    <button class="play ripple" id="play" aria-label="Play the summer">▶</button>
+    <div class="tl-main">
+      <div class="tl-top"><b id="tl-label">Summer average</b><span id="tl-sub">satellite surface temperature</span></div>
+      <input type="range" id="tl" min="0" max="10" step="0.01" value="0" aria-label="Satellite frame">
+      <div class="tl-ticks" id="tl-ticks"></div>
+    </div>
+    <button class="chip ripple" id="tl-avg" aria-pressed="true">Avg</button>
+  </div>
+  <div class="hud-card legend-card">
+    <div class="legend-title" id="legend-title">Surface temperature</div>
+    <div class="legend-bar" id="legend-bar"></div>
+    <div class="legend-ticks"><span id="legend-lo"></span><span id="legend-mid"></span><span id="legend-hi"></span></div>
+  </div>
+  <div class="hud-card layers" id="layers" role="group" aria-label="Map layers">
+    <button class="chip ripple" data-layer="heat" aria-pressed="true">🔥 Heat</button>
+    <button class="chip ripple" data-layer="night" aria-pressed="false">🌙 Night</button>
+    <button class="chip ripple" data-layer="priority" aria-pressed="false">🌳 Plant here</button>
+    <button class="chip ripple" data-layer="landsat" aria-pressed="false" hidden>🔬 50 m</button>
+    <button class="chip ripple" data-layer="refuges" aria-pressed="false">🧊 Cool spots</button>
+    <button class="chip ripple" data-layer="imagery" aria-pressed="false">🗺️ Imagery</button>
+    <button class="chip ripple" data-layer="world" aria-pressed="false">🌍 World</button>
+  </div>
+</div>
+<div class="readout" id="readout" hidden></div>
+<div class="scan" id="scan" hidden><div class="radar"></div><span id="scan-text">Scanning NASA satellite archive…</span></div>
+
+<div id="intro" class="intro">
+  <div class="intro-glow"></div>
+  <div class="intro-inner">
+    <p class="badge"><span class="live-dot"></span> Live NASA satellite &amp; weather data · anywhere on Earth</p>
+    <h1 class="hero"><span class="haze">See the heat.</span><br><em>Grow the shade.</em></h1>
+    <p class="lede">How hot does summer get where you live, block by block from space and day by day on the ground? Where would trees cool it the most?</p>
+    <form class="search big" id="search-big" autocomplete="off">
+      <input id="q-big" type="search" placeholder="Try “Phoenix”, “Delhi”, or your street" aria-label="Search for a place" enterkeyhint="search">
+      <button class="go ripple" type="submit">Explore →</button>
+    </form>
+    <div class="quick" id="quick" aria-label="Example places"></div>
+    <div class="intro-actions">
+      <button class="ghost ripple" id="locate-big" type="button">◎ Use my location</button>
+      <span class="or">or click anywhere on the map</span>
+    </div>
+    <p class="intro-foot" id="intro-foot">Background: NASA MODIS land surface temperature, latest 8-day composite.</p>
+  </div>
+</div>
+
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script type="module" src="/js/explorer.js"></script>
+</body>
+</html>

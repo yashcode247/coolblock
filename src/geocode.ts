@@ -27,6 +27,15 @@ function cityOf(s: string | undefined): Place["city"] {
 const cache = new Map<string, Place | null>();
 const userAgent = () => process.env.GEOCODER_USER_AGENT ?? "CoolBlock/0.1 (HackHarvard 2026 project)";
 
+// Nominatim's usage policy allows at most one request per second, so every call queues through here.
+let nextSlot = 0;
+async function nominatim(url: URL, timeoutMs: number): Promise<Response> {
+  const wait = Math.max(0, nextSlot - Date.now());
+  nextSlot = Math.max(Date.now(), nextSlot) + 1100;
+  if (wait) await new Promise((ok) => setTimeout(ok, wait));
+  return fetch(url, { headers: { "User-Agent": userAgent() }, signal: AbortSignal.timeout(timeoutMs) });
+}
+
 export async function geocode(query: string): Promise<Place | null> {
   const q = query.trim().toLowerCase().replace(/[?.!]+$/, "");
   if (LANDMARKS[q]) return LANDMARKS[q];
@@ -41,10 +50,7 @@ export async function geocode(query: string): Promise<Place | null> {
   url.searchParams.set("viewbox", "-71.191,42.400,-70.986,42.227");
   url.searchParams.set("bounded", "1");
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": userAgent() },
-      signal: AbortSignal.timeout(8000),
-    });
+    const res = await nominatim(url, 8000);
     if (!res.ok) return null;
     const [hit] = (await res.json()) as any[];
     if (!hit) { cache.set(q, null); return null; }
@@ -71,11 +77,72 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string |
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("zoom", "17");
   try {
-    const res = await fetch(url, { headers: { "User-Agent": userAgent() }, signal: AbortSignal.timeout(6000) });
+    const res = await nominatim(url, 6000);
     if (!res.ok) return null;
     const hit = (await res.json()) as any;
     const a = hit?.address ?? {};
     return a.road ?? a.pedestrian ?? a.footway ?? a.square ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type WorldPlace = { lat: number; lon: number; label: string; detail: string; bbox: [number, number, number, number] | null };
+const worldCache = new Map<string, WorldPlace[]>();
+
+/** Anywhere-on-Earth search for the Heat Explorer (the chat stays bounded to its Landsat area). */
+export async function searchWorld(query: string, lang = "en"): Promise<WorldPlace[]> {
+  const q = `${lang}:${query.trim().toLowerCase()}`;
+  if (!query.trim()) return [];
+  if (worldCache.has(q)) return worldCache.get(q)!;
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query.trim());
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("accept-language", lang);
+  const res = await nominatim(url, 8000);
+  if (!res.ok) throw new Error(`Nominatim ${res.status}`);
+  const hits = (await res.json()) as any[];
+  const out = hits.map((h): WorldPlace => {
+    const a = h.address ?? {};
+    const town = a.city ?? a.town ?? a.village ?? a.municipality ?? a.county;
+    const name = h.name || [a.house_number, a.road].filter(Boolean).join(" ") || town || h.display_name.split(",")[0];
+    const b = (h.boundingbox ?? []).map(Number); // [south, north, west, east]
+    return {
+      lat: Number(h.lat), lon: Number(h.lon),
+      label: name,
+      detail: [name === town ? null : town, a.state, a.country].filter(Boolean).join(", "),
+      bbox: b.length === 4 && b.every(Number.isFinite) ? [b[0], b[2], b[1], b[3]] : null,
+    };
+  });
+  if (worldCache.size > 500) worldCache.clear();
+  worldCache.set(q, out);
+  return out;
+}
+
+const describeCache = new Map<string, string | null>();
+
+/** "Neighbourhood, City, Country" for a map click, or null. Cached on a ~100 m grid. */
+export async function describePoint(lat: number, lon: number, lang = "en"): Promise<string | null> {
+  const key = `${lang}:${lat.toFixed(3)},${lon.toFixed(3)}`;
+  if (describeCache.has(key)) return describeCache.get(key)!;
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("lat", lat.toFixed(5));
+  url.searchParams.set("lon", lon.toFixed(5));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("zoom", "14");
+  url.searchParams.set("accept-language", lang);
+  try {
+    const res = await nominatim(url, 6000);
+    if (!res.ok) return null;
+    const a = ((await res.json()) as any)?.address ?? {};
+    const local = a.neighbourhood ?? a.suburb ?? a.quarter ?? a.city_district ?? a.hamlet ?? a.village;
+    const town = a.city ?? a.town ?? a.municipality ?? a.county;
+    const label = [local, town !== local ? town : null, a.country].filter(Boolean).join(", ") || null;
+    if (describeCache.size > 2000) describeCache.clear();
+    describeCache.set(key, label);
+    return label;
   } catch {
     return null;
   }

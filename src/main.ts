@@ -15,7 +15,7 @@ if (grid.synthetic) console.warn("⚠️  Using SYNTHETIC demo grid. Run data/pr
 const bot = new CoolBlock(grid);
 
 const mode = process.argv[2] ?? "all"; // web | photon | all
-if (mode === "web" || mode === "all") runWeb(bot, Number(process.env.PORT ?? 3000));
+if (mode === "web" || mode === "all") runWeb(bot, Number(process.env.PORT ?? 3000), grid, gridPath);
 if (mode === "photon" || mode === "all") {
   if (!process.env.PHOTON_PROJECT_ID || !process.env.PHOTON_API_KEY) {
     console.warn("PHOTON_PROJECT_ID / PHOTON_API_KEY not set — skipping iMessage. Web chat still works.");

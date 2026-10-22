@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>CoolBlock Chat</title>
+<meta name="description" content="Text an address, see your block's summer heat from space, see your street with trees, and get one planted for free.">
+<meta name="theme-color" content="#070b24">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/chat.css">
+</head>
+<body>
+<div class="sky" aria-hidden="true"><div class="stars s1"></div><div class="stars s2"></div><div class="moon"></div><div class="shooting"></div></div>
+<svg class="forest" viewBox="0 0 1440 520" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+  <defs>
+    <g id="oak"><rect x="-7" y="-70" width="14" height="70" rx="4" fill="#2a2320"/><circle cx="0" cy="-110" r="52"/><circle cx="-38" cy="-80" r="38"/><circle cx="38" cy="-82" r="40"/><circle cx="0" cy="-150" r="34"/></g>
+    <g id="pine"><rect x="-6" y="-40" width="12" height="40" fill="#2a2320"/><polygon points="0,-210 -55,-90 55,-90"/><polygon points="0,-170 -68,-40 68,-40"/></g>
+  </defs>
+  <g class="far" fill="#2f5a63" opacity=".8">
+    <use href="#pine" x="60" y="380"/><use href="#oak" x="200" y="370"/><use href="#pine" x="330" y="385"/><use href="#oak" x="480" y="375"/>
+    <use href="#pine" x="620" y="380"/><use href="#oak" x="780" y="372"/><use href="#pine" x="930" y="384"/><use href="#oak" x="1080" y="370"/>
+    <use href="#pine" x="1220" y="382"/><use href="#oak" x="1370" y="374"/>
+  </g>
+  <rect y="380" width="1440" height="140" fill="#264d55"/>
+  <g class="near" fill="#1c3f44">
+    <g class="sway"><use href="#oak" transform="translate(110 470) scale(1.35)"/></g>
+    <use href="#pine" transform="translate(300 480) scale(1.25)"/>
+    <g class="sway" style="animation-delay:-2s"><use href="#oak" transform="translate(560 475) scale(1.2)"/></g>
+    <use href="#pine" transform="translate(900 485) scale(1.3)"/>
+    <g class="sway" style="animation-delay:-4s"><use href="#oak" transform="translate(1130 470) scale(1.4)"/></g>
+    <use href="#pine" transform="translate(1350 482) scale(1.2)"/>
+  </g>
+  <rect y="470" width="1440" height="50" fill="#14302f"/>
+  <g fill="#0d2322"><use href="#oak" transform="translate(20 535) scale(1.7)"/><use href="#oak" transform="translate(1420 535) scale(1.8)"/></g>
+</svg>
+<div class="leaves" aria-hidden="true">
+  <span style="left:8%;animation-duration:14s">🍃</span><span style="left:30%;animation-duration:19s;animation-delay:-6s">🍂</span>
+  <span style="left:62%;animation-duration:16s;animation-delay:-11s">🍃</span><span style="left:85%;animation-duration:21s;animation-delay:-3s">🌿</span>
+</div>
+
+<div id="intro" class="intro">
+  <div class="orbit" aria-hidden="true"><span class="sat">🛰️</span><span class="tree">🌳</span></div>
+  <h1>Cool<span>Block</span></h1>
+  <p>Your block's heat, seen from space. Your street, reimagined with trees. A real tree, planted for free.</p>
+  <div class="intro-cta">
+    <button id="go" class="go ripple">🚀 Start chatting</button>
+    <a class="ghost ripple" href="/">🌍 Explore any city's summer</a>
+  </div>
+  <ol class="steps" aria-label="How it works">
+    <li><b>1</b> Send an address</li><li><b>2</b> Snap your street</li><li><b>3</b> Get a free tree</li>
+  </ol>
+</div>
+
+<main class="app hidden" id="app">
+  <header class="chat-head">
+    <div class="avatar" aria-hidden="true">🌳<span class="online"></span></div>
+    <div class="who">
+      <h1>Cool<span>Block</span></h1>
+      <p id="status" aria-live="polite">online · satellite link ready</p>
+    </div>
+    <div class="head-actions">
+      <a class="icon-btn ripple" id="explore" href="/" title="Open the Heat Explorer map" aria-label="Open the Heat Explorer map">🌍</a>
+      <button class="icon-btn ripple" id="sound" title="Sound effects" aria-pressed="true">🔊</button>
+      <button class="icon-btn ripple" id="reset" title="Start over" aria-label="Start over">↺</button>
+    </div>
+  </header>
+  <div id="log" class="log" role="log" aria-live="polite" aria-label="Conversation"></div>
+  <div class="chips" id="chips" aria-label="Suggested replies"></div>
+  <form id="composer" class="composer" autocomplete="off">
+    <label class="cam ripple" title="Send a street photo" aria-label="Send a street photo">📷<input id="file" type="file" accept="image/*"></label>
+    <textarea id="t" rows="1" placeholder="Type an address, e.g. Nubian Square" aria-label="Message" enterkeyhint="send"></textarea>
+    <button id="send" class="send ripple" aria-label="Send" disabled><span>➤</span></button>
+  </form>
+  <div class="drop" id="drop" hidden><div>🌳<b>Drop your street photo</b><span>I'll show it with trees</span></div></div>
+</main>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-label="Image"><img alt=""><button class="icon-btn" aria-label="Close">✕</button></div>
+<script type="module" src="/js/chat.js"></script>
+</body>
+</html>

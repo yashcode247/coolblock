@@ -1,147 +1,168 @@
-// Web chat fallback: same agent, works without Photon. Also a backup for the live demo.
-import { createServer } from "node:http";
+// Web front end: the Heat Explorer at /, the chat at /chat (same agent as iMessage), and the JSON API behind both.
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { readFile } from "node:fs/promises";
+import { extname, join, normalize, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import type { CoolBlock } from "./agent.js";
+import type { Grid } from "./grid.js";
+import { UpstreamError } from "./cache.js";
+import { climateHistory } from "./climate.js";
+import { describePoint, searchWorld } from "./geocode.js";
+import { liveWeather } from "./live.js";
+import { coolRefuges } from "./refuges.js";
+import { colormap, regionalHeat, validSeason } from "./satellite.js";
 
 const MAX_BODY = 20 * 1024 * 1024;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const PUBLIC = join(ROOT, "public");
+const LEAFLET = join(ROOT, "node_modules", "leaflet", "dist");
+const gz = promisify(gzip);
 
-export function runWeb(bot: CoolBlock, port: number) {
-  createServer(async (req, res) => {
+const TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
+};
+
+class BadRequest extends Error {}
+
+export function runWeb(bot: CoolBlock, port: number, grid: Grid, gridPath: string) {
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
     try {
-      if (req.method === "GET" && (req.url === "/" || req.url?.startsWith("/?"))) {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        return res.end(PAGE);
-      }
-      if (req.method === "POST" && req.url === "/api/msg") {
-        const chunks: Buffer[] = [];
-        let size = 0;
-        for await (const c of req) {
-          size += c.length;
-          if (size > MAX_BODY) { res.writeHead(413); return res.end(); }
-          chunks.push(c as Buffer);
-        }
-        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        const replies = await bot.handle(`web:${body.user ?? "anon"}`, {
-          text: body.text,
-          image: body.imageB64 ? { data: Buffer.from(body.imageB64, "base64"), mimeType: body.mimeType } : undefined,
-        });
-        res.writeHead(200, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify(replies.map((r) =>
-          r.type === "text" ? r : { type: "image", src: `data:image/jpeg;base64,${r.jpeg.toString("base64")}` })));
-      }
-      res.writeHead(404).end();
+      if (req.method === "POST" && url.pathname === "/api/msg") return await onMessage(bot, req, res);
+      if (req.method !== "GET" && req.method !== "HEAD") return void res.writeHead(405).end();
+      if (url.pathname.startsWith("/api/")) return await onApi(url, req, res, grid, gridPath);
+      return await onStatic(url.pathname, req, res);
     } catch (e) {
-      console.error("[web]", e);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify([{ type: "text", text: "Something went wrong, try again." }]));
+      const status = e instanceof BadRequest ? 400 : e instanceof UpstreamError && e.status === 429 ? 503 : 502;
+      if (status !== 400) console.error("[web]", url.pathname, e instanceof Error ? e.message : e);
+      const error = e instanceof BadRequest ? e.message
+        : status === 503 ? "A free data service is rate-limiting requests right now. Try again in a few minutes."
+        : "A data service didn't answer. Try again in a moment.";
+      if (!res.headersSent) await send(req, res, status, { error });
     }
-  }).listen(port, () => console.log(`💬 Web chat on http://localhost:${port}`));
+  });
+  server.listen(port, () => {
+    const { port: p } = server.address() as AddressInfo;
+    console.log(`🌍 Heat Explorer on http://localhost:${p}   💬 chat on http://localhost:${p}/chat`);
+  });
+  return server;
 }
 
-const PAGE = /* html */ `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>CoolBlock</title>
-<style>
-:root{--me:#2f9e5b;--bot:#ffffffe6;--text:#13261b;--muted:#4d6656;--accent:#ff9a3c}
-*{box-sizing:border-box}
-body{margin:0;color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;height:100dvh;display:flex;justify-content:center;
-background:linear-gradient(180deg,#070b24 0%,#121a45 40%,#1d2f5c 70%,#24476a 100%);overflow:hidden}
-.sun{position:fixed;top:7vh;right:10vw;width:170px;height:170px;border-radius:50%;z-index:0;
-background:radial-gradient(circle at 30% 35%,#c9c4b0 0 9%,transparent 10%),radial-gradient(circle at 62% 58%,#cfcab6 0 13%,transparent 14%),
-radial-gradient(circle at 55% 25%,#d6d1bd 0 6%,transparent 7%),radial-gradient(circle at 35% 70%,#d3cebb 0 7%,transparent 8%),
-radial-gradient(circle at 40% 40%,#fffbea,#ece6cf 70%,#d9d2b8);box-shadow:0 0 60px 20px #fff6d455,0 0 160px 60px #9fb7ff33}
-.stars{position:fixed;inset:0;z-index:0;pointer-events:none;
-background-image:radial-gradient(1.5px 1.5px at 10% 12%,#fff,transparent),radial-gradient(1px 1px at 22% 30%,#fff,transparent),
-radial-gradient(1.5px 1.5px at 35% 8%,#fff,transparent),radial-gradient(1px 1px at 48% 22%,#fff,transparent),radial-gradient(2px 2px at 60% 14%,#fff,transparent),
-radial-gradient(1px 1px at 70% 35%,#fff,transparent),radial-gradient(1.5px 1.5px at 92% 40%,#fff,transparent),radial-gradient(1px 1px at 5% 42%,#fff,transparent),
-radial-gradient(1.5px 1.5px at 28% 48%,#fff,transparent),radial-gradient(1px 1px at 55% 45%,#fff,transparent),radial-gradient(1px 1px at 82% 6%,#fff,transparent),
-radial-gradient(1.5px 1.5px at 15% 60%,#fff,transparent),radial-gradient(1px 1px at 96% 18%,#fff,transparent);animation:twinkle 4s ease-in-out infinite alternate}
-@keyframes twinkle{from{opacity:.55}to{opacity:1}}
-.forest{position:fixed;left:0;right:0;bottom:0;width:100%;height:58vh;z-index:0;pointer-events:none}
-.leaf{position:fixed;top:-40px;font-size:22px;z-index:0;animation:fall linear infinite;opacity:.85}
-@keyframes fall{to{transform:translate(80px,110vh) rotate(540deg)}}
-@keyframes sway{0%,100%{transform:rotate(-1.2deg)}50%{transform:rotate(1.2deg)}}
-.forest .sway{transform-origin:50% 100%;animation:sway 6s ease-in-out infinite}
-.app{position:relative;z-index:1;width:100%;max-width:540px;display:flex;flex-direction:column;height:calc(100dvh - 32px);margin:16px;
-background:#0b14331a;backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);border:1px solid #ffffff40;border-radius:28px;overflow:hidden;
-box-shadow:0 20px 60px #00000080}
-header{padding:20px 22px 14px;background:linear-gradient(135deg,#1f6b43b3,#2f9e5b99);color:#fff}
-h1{margin:0;font-size:24px;letter-spacing:.3px}h1 span{color:#ffd27a}
-header p{margin:4px 0 0;color:#e2f5e9;font-size:13px}
-#log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
-.b{max-width:82%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;word-wrap:break-word;box-shadow:0 2px 8px #1b4d3220}
-.bot{background:var(--bot);align-self:flex-start;border-bottom-left-radius:6px}
-.me{background:var(--me);color:#fff;align-self:flex-end;border-bottom-right-radius:6px}
-.b img{max-width:100%;border-radius:12px;display:block}
-.typing{color:#c9d6f0;font-size:13px;align-self:flex-start;padding:0 6px}
-form{display:flex;gap:8px;padding:12px;background:#ffffff1f;border-top:1px solid #ffffff40}
-input[type=text]{flex:1;background:#fff;border:1px solid #2f9e5b55;color:var(--text);border-radius:22px;padding:11px 16px;font-size:16px;outline:none}
-input[type=text]:focus{border-color:var(--me);box-shadow:0 0 0 3px #2f9e5b33}
-button,label.cam{background:var(--me);color:#fff;border:0;border-radius:22px;padding:0 18px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center}
-button:hover{background:#268a4e}
-#intro{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;color:#fff;
-background:#070b2499;transition:opacity .7s,transform .7s}
-#intro.gone{opacity:0;transform:scale(1.08);pointer-events:none}
-#intro h2{margin:0;font-size:clamp(40px,8vw,72px);letter-spacing:1px;text-shadow:0 0 30px #9fb7ff88}#intro h2 span{color:#ffd27a}
-#intro p{margin:0;color:#cfe0ff;font-size:18px;max-width:440px;padding:0 20px}
-#go{position:relative;padding:18px 44px;font-size:20px;border-radius:40px;background:linear-gradient(135deg,#2f9e5b,#5fd38d);
-box-shadow:0 0 0 0 #5fd38daa;animation:pulse 2s infinite}
-#go:hover{transform:scale(1.06)}
-@keyframes pulse{0%{box-shadow:0 0 0 0 #5fd38daa}70%{box-shadow:0 0 0 22px #5fd38d00}100%{box-shadow:0 0 0 0 #5fd38d00}}
-.orbit{width:90px;height:90px;border-radius:50%;border:2px dashed #ffffff55;position:relative;animation:spin 8s linear infinite}
-.orbit::after{content:"🛰️";position:absolute;top:-14px;left:32px;font-size:24px}
-.orbit::before{content:"🌳";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:38px;animation:spin 8s linear infinite reverse}
-@keyframes spin{to{transform:rotate(360deg)}}
-.app.hidden{opacity:0;transform:translateY(30px)}.app{transition:opacity .7s,transform .7s}label.cam{background:#e3f3e9;color:#1f6b43}input[type=file]{display:none}
-</style></head><body>
-<div class="stars"></div><div class="sun"></div>
-<svg class="forest" viewBox="0 0 1440 520" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-<defs>
-<g id="oak"><rect x="-7" y="-70" width="14" height="70" rx="4" fill="#2a2320"/><circle cx="0" cy="-110" r="52"/><circle cx="-38" cy="-80" r="38"/><circle cx="38" cy="-82" r="40"/><circle cx="0" cy="-150" r="34"/></g>
-<g id="pine"><rect x="-6" y="-40" width="12" height="40" fill="#2a2320"/><polygon points="0,-210 -55,-90 55,-90"/><polygon points="0,-170 -68,-40 68,-40"/></g>
-</defs>
-<g fill="#2f5a63" opacity=".85">
-<use href="#pine" x="60" y="380" transform="scale(1)"/><use href="#oak" x="200" y="370"/><use href="#pine" x="330" y="385"/><use href="#oak" x="480" y="375"/>
-<use href="#pine" x="620" y="380"/><use href="#oak" x="780" y="372"/><use href="#pine" x="930" y="384"/><use href="#oak" x="1080" y="370"/>
-<use href="#pine" x="1220" y="382"/><use href="#oak" x="1370" y="374"/>
-</g>
-<rect y="380" width="1440" height="140" fill="#264d55"/>
-<g fill="#1c3f44">
-<g class="sway"><use href="#oak" x="110" y="470" transform="translate(110 470) scale(1.35) translate(-110 -470)"/></g>
-<use href="#pine" x="300" y="480" transform="translate(300 480) scale(1.25) translate(-300 -480)"/>
-<g class="sway" style="animation-delay:-2s"><use href="#oak" x="560" y="475" transform="translate(560 475) scale(1.2) translate(-560 -475)"/></g>
-<use href="#pine" x="900" y="485" transform="translate(900 485) scale(1.3) translate(-900 -485)"/>
-<g class="sway" style="animation-delay:-4s"><use href="#oak" x="1130" y="470" transform="translate(1130 470) scale(1.4) translate(-1130 -470)"/></g>
-<use href="#pine" x="1350" y="482" transform="translate(1350 482) scale(1.2) translate(-1350 -482)"/>
-</g>
-<rect y="470" width="1440" height="50" fill="#14302f"/>
-<g fill="#0d2322">
-<use href="#oak" x="20" y="535" transform="translate(20 535) scale(1.7) translate(-20 -535)"/>
-<use href="#oak" x="1420" y="535" transform="translate(1420 535) scale(1.8) translate(-1420 -535)"/>
-</g>
-</svg>
-<span class="leaf" style="left:8%;animation-duration:14s">🍃</span><span class="leaf" style="left:30%;animation-duration:19s;animation-delay:-6s">🍂</span>
-<span class="leaf" style="left:62%;animation-duration:16s;animation-delay:-11s">🍃</span><span class="leaf" style="left:85%;animation-duration:21s;animation-delay:-3s">🌿</span>
-<div id="intro"><div class="orbit"></div><h2>Cool<span>Block</span></h2>
-<p>Your block's heat, seen from space. Your street, reimagined with trees.</p>
-<button id="go">🚀 Start exploring</button></div>
-<div class="app hidden">
-<header><h1>Cool<span>Block</span> 🌳🛰️</h1><p>Your block's heat, seen from space. Your street, reimagined with trees.</p></header>
-<div id="log"></div>
-<form id="f"><label class="cam" title="Send a street photo">📷<input id="file" type="file" accept="image/*"></label>
-<input id="t" type="text" placeholder="Type an address, e.g. Nubian Square" autocomplete="off"><button>Send</button></form>
-</div><script>
-const log=document.getElementById('log'),t=document.getElementById('t'),file=document.getElementById('file');
-let user;try{user=localStorage.getItem('cb_user')}catch(e){}
-if(!user){user=Math.random().toString(36).slice(2);try{localStorage.setItem('cb_user',user)}catch(e){}}
-function add(cls,content){const d=document.createElement('div');d.className='b '+cls;
- if(typeof content==='string')d.textContent=content;else d.appendChild(content);log.appendChild(d);log.scrollTop=log.scrollHeight}
-async function send(payload){const ty=document.createElement('div');ty.className='typing';ty.textContent='CoolBlock is typing…';log.appendChild(ty);log.scrollTop=log.scrollHeight;
- try{const r=await fetch('/api/msg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user,...payload})});
- const replies=await r.json();for(const x of replies){if(x.delayMs)await new Promise(ok=>setTimeout(ok,x.delayMs));
-  if(x.type==='text')add('bot',x.text);else{const i=new Image();i.src=x.src;add('bot',i)}}ty.remove()}
- catch(e){ty.remove();add('bot','Connection problem, try again.')}}
-document.getElementById('f').onsubmit=e=>{e.preventDefault();const v=t.value.trim();if(!v)return;add('me',v);t.value='';send({text:v})};
-file.onchange=()=>{const f=file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const url=rd.result;
- const i=new Image();i.src=url;add('me',i);send({imageB64:url.split(',')[1],mimeType:f.type})};rd.readAsDataURL(f);file.value=''};
-document.getElementById('go').onclick=()=>{document.getElementById('intro').classList.add('gone');
- document.querySelector('.app').classList.remove('hidden');send({text:'hi'});setTimeout(()=>t.focus(),400)};
-</script></body></html>`;
+async function onMessage(bot: CoolBlock, req: IncomingMessage, res: ServerResponse) {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > MAX_BODY) return void res.writeHead(413).end();
+    chunks.push(c as Buffer);
+  }
+  let body: any;
+  try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new BadRequest("body must be JSON"); }
+  const user = `web:${String(body.user ?? "anon").slice(0, 64)}`;
+  try {
+    const replies = await bot.handle(user, {
+      text: body.text,
+      image: body.imageB64 ? { data: Buffer.from(body.imageB64, "base64"), mimeType: body.mimeType } : undefined,
+    });
+    await send(req, res, 200, {
+      replies: replies.map((r) => (r.type === "text" ? r : { type: "image", src: `data:image/jpeg;base64,${r.jpeg.toString("base64")}`, name: r.name, delayMs: r.delayMs })),
+      context: bot.context(user),
+    });
+  } catch (e) {
+    console.error("[web] chat", e);
+    await send(req, res, 500, { replies: [{ type: "text", text: "Something went wrong, try again." }], context: bot.context(user) });
+  }
+}
+
+const num = (url: URL, k: string, lo: number, hi: number) => {
+  const v = Number(url.searchParams.get(k));
+  if (!url.searchParams.has(k) || !Number.isFinite(v) || v < lo || v > hi) throw new BadRequest(`${k} must be a number between ${lo} and ${hi}`);
+  return v;
+};
+const point = (url: URL) => ({ lat: num(url, "lat", -85, 85), lon: num(url, "lon", -180, 180) });
+const lang = (url: URL) => (/^[a-z]{2}(-[A-Za-z]{2})?$/.test(url.searchParams.get("lang") ?? "") ? url.searchParams.get("lang")! : "en");
+
+async function onApi(url: URL, req: IncomingMessage, res: ServerResponse, grid: Grid, gridPath: string) {
+  switch (url.pathname) {
+    case "/api/search": {
+      const q = (url.searchParams.get("q") ?? "").slice(0, 200);
+      return send(req, res, 200, { places: q.trim() ? await searchWorld(q, lang(url)) : [] });
+    }
+    case "/api/reverse": {
+      const { lat, lon } = point(url);
+      return send(req, res, 200, { label: await describePoint(lat, lon, lang(url)) });
+    }
+    case "/api/climate": {
+      const { lat, lon } = point(url);
+      return send(req, res, 200, await climateHistory(lat, lon), "public, max-age=3600");
+    }
+    case "/api/satellite": {
+      const { lat, lon } = point(url);
+      const start = url.searchParams.get("start") ?? "", end = url.searchParams.get("end") ?? "";
+      const layer = url.searchParams.get("layer") === "night" ? "night" : "day";
+      if (!validSeason(start, end)) throw new BadRequest("start/end must be YYYY-MM-DD, at most ~4 months apart, from March 2000 on");
+      return send(req, res, 200, await regionalHeat(lat, lon, start, end, layer), "public, max-age=3600");
+    }
+    case "/api/now": {
+      const { lat, lon } = point(url);
+      return send(req, res, 200, await liveWeather(lat, lon), "no-cache");
+    }
+    case "/api/refuges": {
+      const { lat, lon } = point(url);
+      return send(req, res, 200, { refuges: await coolRefuges(lat, lon) });
+    }
+    case "/api/colormap": { // lets the browser decode NASA's global tiles itself
+      const name = url.searchParams.get("name");
+      if (name !== "MODIS_Land_Surface_Temp") throw new BadRequest("unknown colormap");
+      return send(req, res, 200, { entries: (await colormap(name)).entries }, "public, max-age=86400");
+    }
+    case "/api/landsat": // the street-level Landsat grid the chat uses, drawn as a 50 m layer on the map
+      return sendFile(req, res, gridPath, "application/json", "public, max-age=86400");
+    case "/api/block": {
+      const { lat, lon } = point(url);
+      const reading = grid.lookup(lat, lon);
+      return send(req, res, 200, { reading, nearby: reading ? grid.nearbyExtremes(lat, lon) : null, meta: grid.meta });
+    }
+  }
+  throw new BadRequest("unknown endpoint");
+}
+
+async function onStatic(path: string, req: IncomingMessage, res: ServerResponse) {
+  if (path === "/") path = "/index.html";
+  if (path === "/chat" || path === "/chat/") path = "/chat.html";
+  const [base, rel] = path.startsWith("/vendor/leaflet/") ? [LEAFLET, path.slice("/vendor/leaflet/".length)] : [PUBLIC, path.slice(1)];
+  let decoded: string;
+  try { decoded = decodeURIComponent(rel); } catch { throw new BadRequest("malformed path"); }
+  const file = normalize(join(base, decoded));
+  if (!file.startsWith(base + sep)) return void res.writeHead(403).end();
+  const type = TYPES[extname(file).toLowerCase()];
+  if (!type) return void res.writeHead(404).end();
+  return sendFile(req, res, file, type, base === LEAFLET ? "public, max-age=86400" : "no-cache");
+}
+
+async function sendFile(req: IncomingMessage, res: ServerResponse, file: string, type: string, cache: string) {
+  let body: Buffer;
+  try { body = await readFile(file); } catch { return void res.writeHead(404).end(); }
+  return write(req, res, 200, body, type, cache);
+}
+
+function send(req: IncomingMessage, res: ServerResponse, status: number, value: unknown, cache = "no-store") {
+  return write(req, res, status, Buffer.from(JSON.stringify(value)), "application/json", cache);
+}
+
+async function write(req: IncomingMessage, res: ServerResponse, status: number, body: Buffer, type: string, cache: string) {
+  const headers: Record<string, string> = { "Content-Type": type, "Cache-Control": cache, "X-Content-Type-Options": "nosniff" };
+  if (body.length > 1024 && /^(text|application\/(json|manifest)|image\/svg)/.test(type) && /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""))) {
+    body = await gz(body);
+    headers["Content-Encoding"] = "gzip";
+    headers["Vary"] = "Accept-Encoding";
+  }
+  headers["Content-Length"] = String(body.length);
+  res.writeHead(status, headers);
+  res.end(req.method === "HEAD" ? undefined : body);
+}
